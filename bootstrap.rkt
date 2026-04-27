@@ -14,7 +14,8 @@
 
 (require racket/cmdline racket/file racket/list racket/format)
 (require "dot.rkt" "graph.rkt" "grammar.rkt" "score.rkt"
-         "recognise.rkt" "propose.rkt" "canonical.rkt")
+         "recognise.rkt" "propose.rkt" "canonical.rkt"
+         "compile.rkt")
 
 (define lib-path "templates.dat")
 (define rkt-path "library.rkt")
@@ -124,3 +125,20 @@
           (outer trial-lib (+ round 1) (+ accepted 1))]
          [else
           (try-each (cdr cs))])])))
+
+;; --- in-memory reflection demo ----------------------------------
+;; Build runnable procedures from the final library WITHOUT touching
+;; disk: each template's s-expression is eval'd in a fresh namespace
+;; and stored as a (name . procedure) pair. Apply each procedure to
+;; integer ghost-args to recover its edge list — the same reflection
+;; pattern as expand.rkt, but the source never hits the filesystem.
+(printf "~n--- in-memory eval demo ---~n")
+(define final-library (read-library))
+(define compiled (compile-templates final-library))
+(printf "compiled ~a templates in a fresh namespace (no file involved):~n"
+        (length compiled))
+(for ([entry (in-list compiled)])
+  (define name (car entry))
+  (define proc (cdr entry))
+  (define recovered (apply-template-to-ghosts proc))
+  (printf "  ~a (arity ~a) → ~v~n" name (car recovered) (cadr recovered)))

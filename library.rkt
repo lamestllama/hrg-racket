@@ -5,9 +5,11 @@
 ;; theory of its own input graph.
 (provide (all-defined-out))
 
-;; Library size: 2 templates, current cover DL=68.4 bits.
+;; Library size: 3 templates, current cover DL=697.0 bits.
 
 (define (R0 n0 n1)
   (list (cons n0 n1)))
-(define (R1 n0 n1 n2 n3)
-  (list (cons n0 n1) (cons n0 n2) (cons n1 n3) (cons n2 n3)))
+(define (R1 n0 n1 n2)
+  (list (cons n0 n1) (cons n0 n2)))
+(define (R2 n0 n1 n2 n3)
+  (list (cons n0 n1) (cons n0 n2) (cons n0 n3)))

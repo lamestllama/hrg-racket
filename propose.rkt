@@ -43,7 +43,10 @@
                         (hash-ref colour m))
                       <))
                    (values v (cons mine nbr-cols))))
-               (define unique (remove-duplicates (hash-values raw)))
+               (define unique
+                 (sort (remove-duplicates (hash-values raw))
+                       (lambda (a b)
+                         (< (equal-hash-code a) (equal-hash-code b)))))
                (define id-of
                  (for/hash ([c (in-list unique)] [i (in-naturals)])
                    (values c i)))
@@ -81,33 +84,52 @@
   (set-member? known fp))
 
 (define (propose-templates G cover library
-                            #:max-size [max-size 5]
+                            #:max-size [max-size 6]
                             #:min-edges [min-edges 1])
-  ;; Enumerate connected k-subsets *of the whole graph* (not just
-  ;; singletons), so the loop can discover bigger patterns that
-  ;; subsume already-accepted smaller ones. Group by WL-canonical
-  ;; fingerprint, exclude fingerprints already in the library.
-  (define all-nodes (list->set (graph-nodes G)))
+  ;; Merge-based proposal. For each pair of instances in the current
+  ;; cover that share at least one cross-instance edge in G, form the
+  ;; merged candidate (A ∪ B), compute its WL-canonical fingerprint,
+  ;; and tally. Group candidates by fingerprint; rank by frequency.
+  ;; This is O(|graph edges|) per round — vastly faster than the
+  ;; previous O(C(N,k)) enumeration, and well-directed because every
+  ;; candidate is anchored on existing structure.
+  (define n-insts (length cover))
+  (define inst-of-node
+    (for/hash ([inst (in-list cover)] [idx (in-naturals)]
+               #:when #t
+               [n (in-set (instance-interior inst))])
+      (values n idx)))
+  (define adj-pairs (mutable-set))
+  (for ([e (in-list (graph-edges G))])
+    (define ia (hash-ref inst-of-node (car e) #f))
+    (define ib (hash-ref inst-of-node (cdr e) #f))
+    (when (and ia ib (not (= ia ib)))
+      (define key (if (< ia ib) (cons ia ib) (cons ib ia)))
+      (set-add! adj-pairs key)))
   (define known-fps
     (for/set ([t (in-list library)])
       (template-fingerprint t)))
   (define histogram (make-hash))
-  (for ([k (in-range 2 (+ max-size 1))]
-        #:when (>= (set-count all-nodes) k))
-    (define subsets (enumerate-connected-subsets G k))
-    (for ([s (in-list subsets)])
-      (define edges-here (length (induced-edges G s)))
-      (when (>= edges-here min-edges)
-        (define t (subgraph-as-template G s))
-        (define fp (template-fingerprint t))
-        (cond
-          [(already-known? fp known-fps) (void)]
-          [(hash-has-key? histogram fp)
-           (define entry (hash-ref histogram fp))
-           (hash-set! histogram fp
-                      (cons (+ 1 (car entry)) (cdr entry)))]
-          [else
-           (hash-set! histogram fp (cons 1 t))]))))
+  (for ([pair (in-set adj-pairs)])
+    (define A (list-ref cover (car pair)))
+    (define B (list-ref cover (cdr pair)))
+    (define merged-nodes
+      (set->list (set-union (instance-interior A)
+                            (instance-interior B))))
+    (define n (length merged-nodes))
+    (when (and (<= n max-size)
+               (>= (length (induced-edges G merged-nodes))
+                   min-edges))
+      (define t (subgraph-as-template G merged-nodes))
+      (define fp (template-fingerprint t))
+      (cond
+        [(already-known? fp known-fps) (void)]
+        [(hash-has-key? histogram fp)
+         (define entry (hash-ref histogram fp))
+         (hash-set! histogram fp
+                    (cons (+ 1 (car entry)) (cdr entry)))]
+        [else
+         (hash-set! histogram fp (cons 1 t))])))
   ;; Rank by frequency descending; break ties by larger size.
   (define ranked
     (sort (hash-values histogram)

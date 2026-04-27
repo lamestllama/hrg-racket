@@ -42,7 +42,14 @@
                 (hash-ref colour m))
               <))
            (values v (cons mine nbr-cols))))
-       (define unique (remove-duplicates (hash-values raw)))
+       ;; Sort unique values by equal-hash-code so id assignment is
+       ;; deterministic across runs and across structurally-identical
+       ;; subgraphs (otherwise the same WL-equivalent motif can get
+       ;; different colour IDs and thus different fingerprints).
+       (define unique
+         (sort (remove-duplicates (hash-values raw))
+               (lambda (a b)
+                 (< (equal-hash-code a) (equal-hash-code b)))))
        (define id-of
          (for/hash ([c (in-list unique)] [i (in-naturals)])
            (values c i)))
