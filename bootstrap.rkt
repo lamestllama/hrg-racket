@@ -21,6 +21,8 @@
 (define load-path (make-parameter #f))
 (define save-path (make-parameter #f))
 (define draw-dir (make-parameter #f))
+(define min-private (make-parameter 1))
+(define min-private-frac (make-parameter 0.5))
 
 (define dot-path
   (command-line #:program "bootstrap"
@@ -33,6 +35,10 @@
                             (save-path p)]
                 [("--draw") d "Render rules + compositions into directory d"
                             (draw-dir d)]
+                [("--min-private") n "Min private-interior nodes per template (default 1)"
+                                   (min-private (string->number n))]
+                [("--min-private-frac") f "Min private/n ratio per template (default 0.0)"
+                                        (min-private-frac (string->number f))]
                 #:args (path) path))
 
 (define (cover-dl G cover)
@@ -57,7 +63,11 @@
     (printf "~nround ~a: ~a templates, ~a instances, DL=~a~n"
             round (length library) (length cover)
             (real->decimal-string dl 1))
-    (define cands (propose-templates G cover library #:max-size (max-size)))
+    (define cands
+      (propose-templates G cover library
+                         #:max-size (max-size)
+                         #:min-private (min-private)
+                         #:min-private-frac (min-private-frac)))
     (printf "  ~a novel candidates~n" (length cands))
     (let try-each ([cs cands])
       (cond

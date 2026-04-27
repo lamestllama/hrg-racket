@@ -1,13 +1,19 @@
 graph composition {
   rankdir=LR;
-  label="R1 ↔ R5 (1 uses)";
+  label="R4 ↔ R5 (2 uses)";
   labelloc=t;
   fontname=Helvetica;
   subgraph cluster_src {
-    label="R1 (src)"; style=filled; color="#cce5ff";
+    label="R4 (src)"; style=filled; color="#cce5ff";
+    "franklin.gen.n1" [label="", shape=circle, style=filled, fillcolor=white];
+    "franklin.gen.n2" [label="", shape=circle, style=filled, fillcolor=white];
+    "franklin.gen.n3" [label="", shape=circle, style=filled, fillcolor=white];
+    "franklin.gw" [label="", shape=circle, style=filled, fillcolor=white];
     "hobart.agg" [label="", shape=circle, style=filled, fillcolor=white];
-    "hobart.nodec" [label="", shape=circle, style=filled, fillcolor=white];
-    "hobart.agg" -- "hobart.nodec";
+    "franklin.gen.n2" -- "franklin.gw";
+    "franklin.gen.n3" -- "franklin.gw";
+    "franklin.gw" -- "hobart.agg";
+    "franklin.gen.n1" -- "franklin.gw";
   }
   subgraph cluster_tgt {
     label="R5 (tgt)"; style=filled; color="#fde2b8";

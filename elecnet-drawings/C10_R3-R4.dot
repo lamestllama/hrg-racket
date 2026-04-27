@@ -1,0 +1,29 @@
+graph composition {
+  rankdir=LR;
+  label="R3 ↔ R4 (1 uses)";
+  labelloc=t;
+  fontname=Helvetica;
+  subgraph cluster_src {
+    label="R3 (src)"; style=filled; color="#cce5ff";
+    "enngonia.gen.n1" [label="", shape=circle, style=filled, fillcolor=white];
+    "enngonia.gen.n2" [label="", shape=circle, style=filled, fillcolor=white];
+    "enngonia.gen.n3" [label="", shape=circle, style=filled, fillcolor=white];
+    "enngonia.gw" [label="", shape=circle, style=filled, fillcolor=white];
+    "enngonia.gen.n3" -- "enngonia.gw";
+    "enngonia.gen.n2" -- "enngonia.gw";
+    "enngonia.gen.n1" -- "enngonia.gw";
+  }
+  subgraph cluster_tgt {
+    label="R4 (tgt)"; style=filled; color="#fde2b8";
+    "dubbo.agg" [label="", shape=circle, style=filled, fillcolor=white];
+    "wee_waa.gen.n1" [label="", shape=circle, style=filled, fillcolor=white];
+    "wee_waa.gen.n2" [label="", shape=circle, style=filled, fillcolor=white];
+    "wee_waa.gen.n3" [label="", shape=circle, style=filled, fillcolor=white];
+    "wee_waa.gw" [label="", shape=circle, style=filled, fillcolor=white];
+    "dubbo.agg" -- "wee_waa.gw";
+    "wee_waa.gen.n1" -- "wee_waa.gw";
+    "wee_waa.gen.n3" -- "wee_waa.gw";
+    "wee_waa.gen.n2" -- "wee_waa.gw";
+  }
+  "dubbo.agg" -- "enngonia.gw" [color=red, penwidth=2.0];
+}

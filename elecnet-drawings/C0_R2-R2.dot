@@ -1,0 +1,27 @@
+graph composition {
+  rankdir=LR;
+  label="R2 ↔ R2 (2 uses)";
+  labelloc=t;
+  fontname=Helvetica;
+  subgraph cluster_src {
+    label="R2 (src)"; style=filled; color="#cce5ff";
+    "canberra.core_1" [label="", shape=circle, style=filled, fillcolor=white];
+    "canberra.site_dc1.eme" [label="", shape=circle, style=filled, fillcolor=white];
+    "canberra.site_dc1.ess" [label="", shape=circle, style=filled, fillcolor=white];
+    "canberra.site_dc1.gw" [label="", shape=circle, style=filled, fillcolor=white];
+    "canberra.site_dc1.ess" -- "canberra.site_dc1.gw";
+    "canberra.core_1" -- "canberra.site_dc1.gw";
+    "canberra.site_dc1.eme" -- "canberra.site_dc1.gw";
+  }
+  subgraph cluster_tgt {
+    label="R2 (tgt)"; style=filled; color="#fde2b8";
+    "sydney.core_1" [label="", shape=circle, style=filled, fillcolor=white];
+    "sydney.site_dc2.eme" [label="", shape=circle, style=filled, fillcolor=white];
+    "sydney.site_dc2.ess" [label="", shape=circle, style=filled, fillcolor=white];
+    "sydney.site_dc2.gw" [label="", shape=circle, style=filled, fillcolor=white];
+    "sydney.core_1" -- "sydney.site_dc2.gw";
+    "sydney.site_dc2.eme" -- "sydney.site_dc2.gw";
+    "sydney.site_dc2.ess" -- "sydney.site_dc2.gw";
+  }
+  "canberra.core_1" -- "sydney.core_1" [color=red, penwidth=2.0];
+}

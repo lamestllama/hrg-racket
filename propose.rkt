@@ -86,7 +86,9 @@
 
 (define (propose-templates G cover library
                             #:max-size [max-size 6]
-                            #:min-edges [min-edges 1])
+                            #:min-edges [min-edges 1]
+                            #:min-private [min-private 1]
+                            #:min-private-frac [min-private-frac 0.0])
   ;; Merge-based: for each pair of cover-instances that share a
   ;; cross-instance edge in G, form the union as a candidate template.
   ;; Group by tentacle-aware canonical fingerprint, exclude library
@@ -118,16 +120,24 @@
                (>= (length (induced-edges G merged-nodes))
                    min-edges))
       (define tents (compute-tentacle-set G merged-nodes))
-      (define t (subgraph-as-template G merged-nodes tents))
-      (define fp (template-fingerprint t))
-      (cond
-        [(already-known? fp known-fps) (void)]
-        [(hash-has-key? histogram fp)
-         (define entry (hash-ref histogram fp))
-         (hash-set! histogram fp
-                    (cons (+ 1 (car entry)) (cdr entry)))]
-        [else
-         (hash-set! histogram fp (cons 1 t))])))
+      (define n-tents (set-count tents))
+      (define n-priv (- n n-tents))
+      ;; Reject "boundary-only" templates — those whose interior is
+      ;; entirely tentacles. A template needs some private interior
+      ;; nodes (no edges to outside) to be a real abstraction; an
+      ;; all-tentacle subgraph is just an arbitrary cut.
+      (when (and (>= n-priv min-private)
+                 (>= (/ n-priv n) min-private-frac))
+        (define t (subgraph-as-template G merged-nodes tents))
+        (define fp (template-fingerprint t))
+        (cond
+          [(already-known? fp known-fps) (void)]
+          [(hash-has-key? histogram fp)
+           (define entry (hash-ref histogram fp))
+           (hash-set! histogram fp
+                      (cons (+ 1 (car entry)) (cdr entry)))]
+          [else
+           (hash-set! histogram fp (cons 1 t))]))))
   (define ranked
     (sort (hash-values histogram)
           (lambda (a b)
