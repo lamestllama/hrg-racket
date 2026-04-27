@@ -18,6 +18,7 @@
 
 (provide draw-rule
          draw-composition
+         draw-coverage
          find-compositions)
 
 (define DOT-EXE (find-executable-path "dot"))
@@ -112,6 +113,62 @@
                              (= (cadr entry) tgt-id)))
         (caddr entry)))
     (list key (list src-id tgt-id bridges) count)))
+
+;; ---------- coverage drawing -----------------------------------
+;; The whole host graph laid out with every node coloured by its
+;; instance's rule_id. Shows the *tiling* — which regions of the
+;; network are covered by which template, and where the singletons
+;; (uncovered nodes) sit. This is the most useful diagnostic for
+;; whether the discovered grammar matches the network's structure.
+
+(define COVERAGE-PALETTE
+  '("#cce5ff" "#fde2b8" "#c8e6c9" "#f8bbd0" "#d1c4e9"
+    "#ffcc80" "#b2dfdb" "#f0f4c3" "#ffab91" "#b39ddb"
+    "#80cbc4" "#ffe082" "#bcaaa4" "#ef9a9a"))
+
+(define (rule-colour rid)
+  (cond
+    [(< rid 0) "#dddddd"]    ; unassigned / fallback
+    [else
+     (list-ref COVERAGE-PALETTE
+               (modulo rid (length COVERAGE-PALETTE)))]))
+
+(define (draw-coverage G cover title out-path)
+  (define inst-of-node (make-hash))
+  (for ([inst (in-list cover)] [idx (in-naturals)]
+        #:when #t
+        [v (in-set (instance-interior inst))])
+    (hash-set! inst-of-node v inst))
+  (define (escape-id s) (format "\"~a\"" s))
+  (define node-decls
+    (for/list ([n (in-list (graph-nodes G))])
+      (define inst (hash-ref inst-of-node n #f))
+      (define rid (cond [inst (instance-rule-id inst)] [else -1]))
+      (define is-tent
+        (and inst (set-member? (instance-tentacles inst) n)))
+      (format "  ~a [label=\"R~a\", style=filled, fillcolor=\"~a\"~a];"
+              (escape-id n) rid (rule-colour rid)
+              (if is-tent ", shape=doublecircle, color=\"#cc0000\"" ", shape=circle"))))
+  (define edge-decls
+    (for/list ([e (in-list (graph-edges G))])
+      (define ia (hash-ref inst-of-node (car e) #f))
+      (define ib (hash-ref inst-of-node (cdr e) #f))
+      (define same-inst?
+        (and ia ib (eq? ia ib)))
+      (format "  ~a -- ~a [color=\"~a\"~a];"
+              (escape-id (car e)) (escape-id (cdr e))
+              (cond [same-inst? "#666666"] [else "#cc0000"])
+              (cond [same-inst? ""] [else ", penwidth=1.6"]))))
+  (define dot-text
+    (string-append
+     "graph coverage {\n"
+     (format "  label=~v;\n  labelloc=t;\n  fontname=Helvetica;\n" title)
+     "  layout=neato; overlap=false; splines=true;\n"
+     "  node [fontname=Helvetica, fontsize=10];\n"
+     (string-join node-decls "\n") "\n"
+     (string-join edge-decls "\n") "\n"
+     "}\n"))
+  (write-dot+png dot-text out-path))
 
 (define (draw-composition G cover comp-record out-path)
   (define key (car comp-record))

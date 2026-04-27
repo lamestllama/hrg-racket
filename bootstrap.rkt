@@ -183,6 +183,14 @@
   (define final-gram (grammar-from-cover G final-cover))
   ;; Re-stamp cover instances with rule_ids from final-gram.
   (define labelled-cover (grammar-instances final-gram))
+  (define cov-out (build-path d "coverage"))
+  (draw-coverage G labelled-cover
+                 (format "coverage — ~a templates, ~a instances, DL=~a"
+                         (length (grammar-rules final-gram))
+                         (length labelled-cover)
+                         (real->decimal-string final-dl 1))
+                 (path->string cov-out))
+  (printf "  coverage → ~a.png~n" cov-out)
   (define comps (find-compositions G labelled-cover))
   (printf "~n  ~a composition pair(s) found~n" (length comps))
   (for ([c (in-list comps)] [i (in-naturals)])

@@ -1,0 +1,20 @@
+graph composition {
+  rankdir=LR;
+  label="R0 ↔ R1 (3 uses)";
+  labelloc=t;
+  fontname=Helvetica;
+  subgraph cluster_src {
+    label="R0 (src)"; style=filled; color="#cce5ff";
+    "dotswood.gen.n2" [label="", shape=circle, style=filled, fillcolor=white];
+
+  }
+  subgraph cluster_tgt {
+    label="R1 (tgt)"; style=filled; color="#fde2b8";
+    "dotswood.gen.n1" [label="", shape=circle, style=filled, fillcolor=white];
+    "dotswood.gen.n3" [label="", shape=circle, style=filled, fillcolor=white];
+    "dotswood.gw" [label="", shape=circle, style=filled, fillcolor=white];
+    "dotswood.gen.n1" -- "dotswood.gw";
+    "dotswood.gen.n3" -- "dotswood.gw";
+  }
+  "dotswood.gen.n2" -- "dotswood.gw" [color=red, penwidth=2.0];
+}
