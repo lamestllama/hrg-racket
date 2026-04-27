@@ -1,63 +1,80 @@
 #lang racket/base
-;; Greedy template-matching with tentacle-aware canonical fingerprints.
-;; A candidate node-subset matches a template iff their tentacle-aware
-;; canonical fingerprints are equal — i.e. the candidate has the same
-;; structure AND the same cross-boundary tentacle pattern that the
-;; template prescribes.
+;; Greedy template-matching with tentacle-aware canonical fingerprints,
+;; with a per-graph candidate cache.
+;;
+;; Each recognise call inside the bootstrap loop ran enumerate-connected-
+;; subsets + tentacle-set + WL fingerprint from scratch — even though the
+;; underlying graph never changes within a run. With ~30 candidate
+;; templates per round × ~6 rounds, that's 180 redundant passes.
+;;
+;; The fix: a (graph → k → entries) cache, populated lazily, where each
+;; entry is (nodes induced e-count tents fp). recognise just iterates the
+;; cached entries, filters by `covered`, and looks up fingerprints in a
+;; template hash. Bootstrap creates one cache at start and reuses it.
 
 (require racket/set racket/list)
 (require "graph.rkt" "grammar.rkt" "canonical.rkt")
 
-(provide recognise-cover)
+(provide recognise-cover make-recogniser-cache)
 
 (define (template-size t) (car t))
 (define (template-tentacle-indices t) (cadr t))
 (define (template-edges t) (caddr t))
 
-(define (find-template-matches G template avail-nodes-set)
-  (define want-fp (template-fingerprint template))
-  (define n (template-size template))
-  (define cands (enumerate-connected-subsets G n #:among avail-nodes-set))
-  (for/list ([nodes (in-list cands)]
-             #:when
-             (let ([tents (compute-tentacle-set G nodes)])
-               (equal? (induced-canonical-fingerprint G nodes tents)
-                       want-fp)))
-    nodes))
+(define (make-recogniser-cache)
+  (make-hash))
 
-(define (template-cmp a b)
+(define (cache-entries-for-size G k cache)
   (cond
-    [(> (template-size a) (template-size b)) #t]
-    [(< (template-size a) (template-size b)) #f]
-    [else (> (length (template-edges a)) (length (template-edges b)))]))
+    [(hash-has-key? cache k) (hash-ref cache k)]
+    [else
+     (define entries
+       (for/list ([nodes (in-list (enumerate-connected-subsets G k))])
+         (define induced (induced-edges G nodes))
+         (define e-count (length induced))
+         (define tents (compute-tentacle-set G nodes))
+         (define fp (induced-canonical-fingerprint G nodes tents))
+         (list nodes induced e-count tents fp)))
+     (hash-set! cache k entries)
+     entries]))
 
-(define (recognise-cover G library)
-  (define sorted-lib (sort library template-cmp))
-  (define covered (mutable-set))
-  (define instances '())
-  (define iid 0)
+(define (recognise-cover G library #:cache [cache (make-recogniser-cache)])
+  (cond
+    [(null? library)
+     (for/list ([v (in-list (graph-nodes G))] [i (in-naturals)])
+       (instance i (set v) (set) (set) -1))]
+    [else
+     (define template-by-fp (make-hash))
+     (for ([t (in-list library)])
+       (hash-set! template-by-fp (template-fingerprint t) t))
+     (define sizes
+       (sort
+        (remove-duplicates
+         (for/list ([t (in-list library)]) (template-size t)))
+        >))
+     (define covered (mutable-set))
+     (define instances '())
+     (define iid 0)
 
-  (for ([template (in-list sorted-lib)])
-    (define avail
-      (for/set ([v (in-list (graph-nodes G))]
-                #:when (not (set-member? covered v)))
-        v))
-    (when (>= (set-count avail) (template-size template))
-      (define matches (find-template-matches G template avail))
-      (for ([m (in-list matches)]
-            #:when (andmap (lambda (v) (not (set-member? covered v))) m))
-        (define interior (list->set m))
-        (define owned (list->set (induced-edges G m)))
-        (set! instances
-              (cons (instance iid interior (set) owned -1) instances))
-        (set! iid (+ iid 1))
-        (for ([v (in-list m)])
-          (set-add! covered v)))))
+     (for ([k (in-list sizes)])
+       (define entries (cache-entries-for-size G k cache))
+       (for ([entry (in-list entries)])
+         (define nodes (car entry))
+         (when (andmap (lambda (v) (not (set-member? covered v))) nodes)
+           (define fp (list-ref entry 4))
+           (when (hash-has-key? template-by-fp fp)
+             (define interior (list->set nodes))
+             (define owned (list->set (cadr entry)))
+             (set! instances
+                   (cons (instance iid interior (set) owned -1) instances))
+             (set! iid (+ iid 1))
+             (for ([v (in-list nodes)])
+               (set-add! covered v))))))
 
-  (for ([v (in-list (graph-nodes G))]
-        #:unless (set-member? covered v))
-    (set! instances
-          (cons (instance iid (set v) (set) (set) -1) instances))
-    (set! iid (+ iid 1)))
+     (for ([v (in-list (graph-nodes G))]
+           #:unless (set-member? covered v))
+       (set! instances
+             (cons (instance iid (set v) (set) (set) -1) instances))
+       (set! iid (+ iid 1)))
 
-  (reverse instances))
+     (reverse instances)]))

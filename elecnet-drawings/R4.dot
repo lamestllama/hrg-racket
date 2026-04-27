@@ -1,0 +1,15 @@
+graph rule {
+  label="R4 — 5n, tentacles=(0 2 3 4), 4e";
+  labelloc=t;
+  fontname=Helvetica;
+  node [fontname=Helvetica];
+  n0 [label="0", style=filled, fillcolor="#f8b4b4", shape=doublecircle];
+  n1 [label="1", style=filled, fillcolor="#cce5ff", shape=circle];
+  n2 [label="2", style=filled, fillcolor="#f8b4b4", shape=doublecircle];
+  n3 [label="3", style=filled, fillcolor="#f8b4b4", shape=doublecircle];
+  n4 [label="4", style=filled, fillcolor="#f8b4b4", shape=doublecircle];
+  n0 -- n1;
+  n0 -- n4;
+  n2 -- n4;
+  n3 -- n4;
+}

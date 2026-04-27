@@ -43,12 +43,16 @@
   (cond [(and (load-path) (file-exists? (load-path)))
          (with-input-from-file (load-path) read)]
         [else '()]))
+;; Single shared cache: enumerate-connected-subsets + WL fingerprint
+;; for each k get computed at most once across the whole bootstrap
+;; run, and reused by every recognise-cover call.
+(define rcache (make-recogniser-cache))
 (printf "loaded ~a: ~a nodes, ~a edges; library starts at ~a templates~n"
         dot-path (graph-n-nodes G) (graph-n-edges G) (length library))
 
 (define-values (final-library final-dl)
   (let outer ([library library] [round 0] [accepted 0])
-    (define cover (recognise-cover G library))
+    (define cover (recognise-cover G library #:cache rcache))
     (define dl (cover-dl G cover))
     (printf "~nround ~a: ~a templates, ~a instances, DL=~a~n"
             round (length library) (length cover)
@@ -63,7 +67,7 @@
         [else
          (define t (car cs))
          (define trial-lib (append library (list t)))
-         (define trial-cover (recognise-cover G trial-lib))
+         (define trial-cover (recognise-cover G trial-lib #:cache rcache))
          (define trial-dl (cover-dl G trial-cover))
          (cond
            [(< trial-dl dl)

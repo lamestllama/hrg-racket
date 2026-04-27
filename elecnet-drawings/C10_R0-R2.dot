@@ -1,0 +1,20 @@
+graph composition {
+  rankdir=LR;
+  label="R0 ↔ R2 (5 uses)";
+  labelloc=t;
+  fontname=Helvetica;
+  subgraph cluster_src {
+    label="R0 (src)"; style=filled; color="#cce5ff";
+    "canberra.core_1" [label="", shape=circle, style=filled, fillcolor=white];
+
+  }
+  subgraph cluster_tgt {
+    label="R2 (tgt)"; style=filled; color="#fde2b8";
+    "canberra.site_dc1.eme" [label="", shape=circle, style=filled, fillcolor=white];
+    "canberra.site_dc1.ess" [label="", shape=circle, style=filled, fillcolor=white];
+    "canberra.site_dc1.gw" [label="", shape=circle, style=filled, fillcolor=white];
+    "canberra.site_dc1.ess" -- "canberra.site_dc1.gw";
+    "canberra.site_dc1.eme" -- "canberra.site_dc1.gw";
+  }
+  "canberra.core_1" -- "canberra.site_dc1.gw" [color=red, penwidth=2.0];
+}

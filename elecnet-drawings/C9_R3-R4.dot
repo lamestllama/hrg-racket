@@ -1,0 +1,29 @@
+graph composition {
+  rankdir=LR;
+  label="R3 ↔ R4 (2 uses)";
+  labelloc=t;
+  fontname=Helvetica;
+  subgraph cluster_src {
+    label="R3 (src)"; style=filled; color="#cce5ff";
+    "wee_waa.gen.n1" [label="", shape=circle, style=filled, fillcolor=white];
+    "wee_waa.gen.n2" [label="", shape=circle, style=filled, fillcolor=white];
+    "wee_waa.gen.n3" [label="", shape=circle, style=filled, fillcolor=white];
+    "wee_waa.gw" [label="", shape=circle, style=filled, fillcolor=white];
+    "wee_waa.gen.n1" -- "wee_waa.gw";
+    "wee_waa.gen.n3" -- "wee_waa.gw";
+    "wee_waa.gen.n2" -- "wee_waa.gw";
+  }
+  subgraph cluster_tgt {
+    label="R4 (tgt)"; style=filled; color="#fde2b8";
+    "dubbo.agg" [label="", shape=circle, style=filled, fillcolor=white];
+    "sydney.core_1" [label="", shape=circle, style=filled, fillcolor=white];
+    "sydney.site_dc1.ess" [label="", shape=circle, style=filled, fillcolor=white];
+    "sydney.site_dc1.gw" [label="", shape=circle, style=filled, fillcolor=white];
+    "sydney.site_dc2.gw" [label="", shape=circle, style=filled, fillcolor=white];
+    "sydney.site_dc1.ess" -- "sydney.site_dc1.gw";
+    "sydney.core_1" -- "sydney.site_dc2.gw";
+    "dubbo.agg" -- "sydney.core_1";
+    "sydney.core_1" -- "sydney.site_dc1.gw";
+  }
+  "dubbo.agg" -- "wee_waa.gw" [color=red, penwidth=2.0];
+}
