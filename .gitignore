@@ -1,0 +1,4 @@
+compiled/
+*.dep
+*.zo
+.DS_Store
