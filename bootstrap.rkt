@@ -15,11 +15,12 @@
 (require racket/cmdline racket/file racket/list racket/format)
 (require "dot.rkt" "graph.rkt" "grammar.rkt" "score.rkt"
          "recognise.rkt" "propose.rkt" "canonical.rkt"
-         "compile.rkt")
+         "compile.rkt" "draw.rkt")
 
 (define max-size (make-parameter 6))
 (define load-path (make-parameter #f))
 (define save-path (make-parameter #f))
+(define draw-dir (make-parameter #f))
 
 (define dot-path
   (command-line #:program "bootstrap"
@@ -30,6 +31,8 @@
                             (load-path p)]
                 [("--save") p "Save library to path after running"
                             (save-path p)]
+                [("--draw") d "Render rules + compositions into directory d"
+                            (draw-dir d)]
                 #:args (path) path))
 
 (define (cover-dl G cover)
@@ -98,3 +101,27 @@
   (call-with-output-file (save-path) #:exists 'replace
     (lambda (out) (write final-library out) (newline out)))
   (printf "~nsaved final library to ~a~n" (save-path)))
+
+(when (draw-dir)
+  (define d (draw-dir))
+  (unless (directory-exists? d) (make-directory* d))
+  (printf "~n--- rendering rules + compositions into ~a ---~n" d)
+  (for ([t (in-list final-library)] [i (in-naturals)])
+    (define title (format "R~a — ~an, tentacles=~a, ~ae"
+                          i (car t) (cadr t) (length (caddr t))))
+    (define out (build-path d (format "R~a" i)))
+    (draw-rule t title (path->string out))
+    (printf "  rule R~a → ~a.png~n" i out))
+  (define final-cover (recognise-cover G final-library))
+  (define final-gram (grammar-from-cover G final-cover))
+  ;; Re-stamp cover instances with rule_ids from final-gram.
+  (define labelled-cover (grammar-instances final-gram))
+  (define comps (find-compositions G labelled-cover))
+  (printf "~n  ~a composition pair(s) found~n" (length comps))
+  (for ([c (in-list comps)] [i (in-naturals)])
+    (define key (car c))
+    (define count (caddr c))
+    (define out (build-path d (format "C~a_R~a-R~a" i (car key) (cdr key))))
+    (draw-composition G labelled-cover c (path->string out))
+    (printf "  composition R~a↔R~a (~a uses) → ~a.png~n"
+            (car key) (cdr key) count out)))
