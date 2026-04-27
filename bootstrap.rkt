@@ -78,7 +78,9 @@
          (for/list ([e (in-list edges)])
            (format "(cons n~a n~a)" (car e) (cdr e)))
          " "))
-      (format "(define-syntax-rule (R~a ~a)\n  (list ~a))\n"
+      ;; Procedures (not syntax-rules) so reflective-recognise.rkt can
+      ;; apply them at runtime via dynamic-require.
+      (format "(define (R~a ~a)\n  (list ~a))\n"
               i args edge-forms)))
   (define text (apply string-append header defs))
   (call-with-output-file rkt-path #:exists 'replace

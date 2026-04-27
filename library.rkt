@@ -5,15 +5,9 @@
 ;; theory of its own input graph.
 (provide (all-defined-out))
 
-;; Library size: 5 templates, current cover DL=125.0 bits.
+;; Library size: 2 templates, current cover DL=68.4 bits.
 
-(define-syntax-rule (R0 n0 n1 n2 n3 n4)
-  (list (cons n0 n2) (cons n1 n3) (cons n2 n4) (cons n3 n4)))
-(define-syntax-rule (R1 n0 n1 n2 n3 n4)
-  (list (cons n0 n1) (cons n0 n2) (cons n0 n3) (cons n1 n2) (cons n1 n3) (cons n2 n3) (cons n2 n4) (cons n3 n4)))
-(define-syntax-rule (R2 n0 n1 n2 n3 n4)
-  (list (cons n0 n1) (cons n0 n2) (cons n0 n3) (cons n1 n2) (cons n1 n3) (cons n2 n3) (cons n3 n4)))
-(define-syntax-rule (R3 n0 n1 n2 n3 n4)
-  (list (cons n0 n1) (cons n0 n2) (cons n0 n3) (cons n0 n4) (cons n1 n2) (cons n1 n3) (cons n1 n4) (cons n2 n3)))
-(define-syntax-rule (R4 n0 n1 n2 n3 n4)
-  (list (cons n0 n3) (cons n1 n3) (cons n1 n4) (cons n2 n3) (cons n2 n4)))
+(define (R0 n0 n1)
+  (list (cons n0 n1)))
+(define (R1 n0 n1 n2 n3)
+  (list (cons n0 n1) (cons n0 n2) (cons n1 n3) (cons n2 n3)))
