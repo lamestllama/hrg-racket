@@ -1,12 +1,9 @@
 #lang racket/base
-;; Build a cover of G by greedy matching against a structural template
-;; library. A template is `(list n-interior edges)` where `edges` is a
-;; list of (i . j) pairs into [0, n). Two subgraphs match iff they
-;; have the same WL-canonical fingerprint.
-;;
-;; Greedy match order: largest templates first, ties broken by
-;; descending edge-count. After all templates have claimed their
-;; non-overlapping matches, leftover nodes become singletons.
+;; Greedy template-matching with tentacle-aware canonical fingerprints.
+;; A candidate node-subset matches a template iff their tentacle-aware
+;; canonical fingerprints are equal — i.e. the candidate has the same
+;; structure AND the same cross-boundary tentacle pattern that the
+;; template prescribes.
 
 (require racket/set racket/list)
 (require "graph.rkt" "grammar.rkt" "canonical.rkt")
@@ -14,25 +11,18 @@
 (provide recognise-cover)
 
 (define (template-size t) (car t))
-(define (template-edges t) (cadr t))
-
-(define (template-fingerprint-cached t cache)
-  (cond
-    [(hash-has-key? cache t) (hash-ref cache t)]
-    [else
-     (define fp (template-fingerprint t))
-     (hash-set! cache t fp)
-     fp]))
+(define (template-tentacle-indices t) (cadr t))
+(define (template-edges t) (caddr t))
 
 (define (find-template-matches G template avail-nodes-set)
-  ;; Enumerate connected k-subsets within avail-nodes-set, keep those
-  ;; whose induced canonical fingerprint matches the template's.
   (define want-fp (template-fingerprint template))
   (define n (template-size template))
   (define cands (enumerate-connected-subsets G n #:among avail-nodes-set))
   (for/list ([nodes (in-list cands)]
-             #:when (equal? (induced-canonical-fingerprint G nodes)
-                            want-fp))
+             #:when
+             (let ([tents (compute-tentacle-set G nodes)])
+               (equal? (induced-canonical-fingerprint G nodes tents)
+                       want-fp)))
     nodes))
 
 (define (template-cmp a b)

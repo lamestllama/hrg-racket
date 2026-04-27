@@ -1,22 +1,37 @@
 #lang racket/base
-;; WL-canonical fingerprints for small induced subgraphs. Two
-;; subgraphs with the same fingerprint are WL-indistinguishable and
-;; (for graphs up to ~10 vertices) almost always isomorphic.
+;; WL-canonical fingerprints for small induced subgraphs, with
+;; tentacle-aware initial colouring.
 ;;
-;; A fingerprint is a 3-tuple:
-;;   (n  sorted-colour-multiset  sorted-edge-multiset)
-;; where colours come from running WL refinement on the induced
-;; subgraph until stable.
+;; A template now carries a tentacle-position set: the subset of its
+;; n positions whose corresponding host-graph nodes are tentacles
+;; (have edges crossing the instance boundary). WL refinement starts
+;; with initial colour 1 for tentacle positions, 0 for private-
+;; interior positions, so two subgraphs with the same structure but
+;; different tentacle patterns produce different fingerprints —
+;; matching Python's `make_boundary_fn` semantics.
+;;
+;; Template format: (list n tentacle-indices edges)
+;; Fingerprint:    (list n sorted-colour-multiset sorted-edge-multiset)
 
 (require racket/set racket/list)
 (require "graph.rkt")
 
 (provide induced-canonical-fingerprint
          template-fingerprint
-         template-fingerprint-equal?)
+         template-fingerprint-equal?
+         compute-tentacle-set)
 
-(define (sorted-list-of-ints xs)
-  (sort xs <))
+(define (compute-tentacle-set G nodes)
+  ;; A tentacle is an interior node with at least one host-graph
+  ;; neighbour outside this nodeset.
+  (define ns (list->set nodes))
+  (for/set ([v (in-list nodes)]
+            #:when
+            (for/or ([m (in-set (graph-neighbours G v))])
+              (not (set-member? ns m))))
+    v))
+
+(define (sorted-list-of-ints xs) (sort xs <))
 
 (define (sorted-pair p)
   (cond [(<= (car p) (cadr p)) p]
@@ -42,10 +57,6 @@
                 (hash-ref colour m))
               <))
            (values v (cons mine nbr-cols))))
-       ;; Sort unique values by equal-hash-code so id assignment is
-       ;; deterministic across runs and across structurally-identical
-       ;; subgraphs (otherwise the same WL-equivalent motif can get
-       ;; different colour IDs and thus different fingerprints).
        (define unique
          (sort (remove-duplicates (hash-values raw))
                (lambda (a b)
@@ -60,7 +71,7 @@
          [(equal? colour next) next]
          [else (loop next (+ r 1))])])))
 
-(define (induced-canonical-fingerprint G nodes)
+(define (induced-canonical-fingerprint G nodes tentacle-set)
   (define n (length nodes))
   (define node-set (list->set nodes))
   (define adj-of
@@ -68,7 +79,9 @@
       (for/set ([m (in-set (graph-neighbours G v))]
                 #:when (set-member? node-set m))
         m)))
-  (define initial (for/hash ([v (in-list nodes)]) (values v 0)))
+  (define initial
+    (for/hash ([v (in-list nodes)])
+      (values v (if (set-member? tentacle-set v) 1 0))))
   (define final (wl-refine adj-of nodes initial 6))
   (define cs (sorted-list-of-ints (hash-values final)))
   (define es
@@ -79,14 +92,13 @@
      compare-pair))
   (list n cs es))
 
-;; The fingerprint of a *template* (a stored, abstract subgraph) is
-;; computed from its own node/edge spec. A template is represented as
-;;     (list n-interior edges)
-;; where edges is a list of (i . j) pairs of indices into [0, n).
 (define (template-fingerprint template)
+  ;; template = (list n tentacle-indices edges)
   (define n (car template))
-  (define edges (cadr template))
+  (define tents (cadr template))
+  (define edges (caddr template))
   (define node-list (build-list n (lambda (i) i)))
+  (define tents-set (list->set tents))
   (define adj
     (let ([h (make-hash)])
       (for ([i (in-list node-list)]) (hash-set! h i (mutable-set)))
@@ -95,7 +107,9 @@
         (set-add! (hash-ref h (cdr e)) (car e)))
       h))
   (define adj-of (lambda (v) (hash-ref adj v (mutable-set))))
-  (define initial (for/hash ([v (in-list node-list)]) (values v 0)))
+  (define initial
+    (for/hash ([v (in-list node-list)])
+      (values v (if (set-member? tents-set v) 1 0))))
   (define final (wl-refine adj-of node-list initial 6))
   (define cs (sorted-list-of-ints (hash-values final)))
   (define es
