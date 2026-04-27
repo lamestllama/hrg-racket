@@ -1,0 +1,129 @@
+graph "templated_out" {
+  // Four template instances, each a K5 on { D, B1, B2, C1, C2 }.
+  // Around them sit eight A "glue" nodes (two per template) that
+  // bridge templates to their vertically- and horizontally-adjacent
+  // neighbours.
+
+  // ---- Template instances ---------------------------------------------
+  "g.D"  [role="D", template="green"];
+  "g.B1" [role="B", template="green"];
+  "g.B2" [role="B", template="green"];
+  "g.C1" [role="C", template="green"];
+  "g.C2" [role="C", template="green"];
+
+  "p.D"  [role="D", template="purple"];
+  "p.B1" [role="B", template="purple"];
+  "p.B2" [role="B", template="purple"];
+  "p.C1" [role="C", template="purple"];
+  "p.C2" [role="C", template="purple"];
+
+  "r.D"  [role="D", template="red"];
+  "r.B1" [role="B", template="red"];
+  "r.B2" [role="B", template="red"];
+  "r.C1" [role="C", template="red"];
+  "r.C2" [role="C", template="red"];
+
+  "o.D"  [role="D", template="orange"];
+  "o.B1" [role="B", template="orange"];
+  "o.B2" [role="B", template="orange"];
+  "o.C1" [role="C", template="orange"];
+  "o.C2" [role="C", template="orange"];
+
+  // ---- Glue nodes -----------------------------------------------------
+  "a.g1" [role="A"];
+  "a.g2" [role="A"];
+  "a.p1" [role="A"];
+  "a.p2" [role="A"];
+  "a.r1" [role="A"];
+  "a.r2" [role="A"];
+  "a.o1" [role="A"];
+  "a.o2" [role="A"];
+
+  // ---- K5 inside each template ---------------------------------------
+  // green
+  "g.D"  -- "g.B1";
+  "g.D"  -- "g.B2";
+  "g.B1" -- "g.B2";
+  "g.C1" -- "g.C2";
+  "g.B1" -- "g.C1";
+  "g.B1" -- "g.C2";
+  "g.B2" -- "g.C1";
+  "g.B2" -- "g.C2";
+
+  // purple
+  "p.D"  -- "p.B1";
+  "p.D"  -- "p.B2";
+  "p.B1" -- "p.B2";
+  "p.C1" -- "p.C2";
+  "p.B1" -- "p.C1";
+  "p.B1" -- "p.C2";
+  "p.B2" -- "p.C1";
+  "p.B2" -- "p.C2";
+
+  // red
+  "r.D"  -- "r.B1";
+  "r.D"  -- "r.B2";
+  "r.B1" -- "r.B2";
+  "r.C1" -- "r.C2";
+  "r.B1" -- "r.C1";
+  "r.B1" -- "r.C2";
+  "r.B2" -- "r.C1";
+  "r.B2" -- "r.C2";
+
+  // orange
+  "o.D"  -- "o.C1";
+  "o.D"  -- "o.C2";
+  "o.B1" -- "o.B2";
+  "o.C1" -- "o.C2";
+  "o.B1" -- "o.C1";
+  "o.B1" -- "o.C2";
+  "o.B2" -- "o.C1";
+  "o.B2" -- "o.C2";
+
+  // ---- Each template's two A-tentacles --------------------------------
+  // The pair of A nodes sits "outside" the template, each linked to
+  // the nearer B vertex; the two A's of a pair are also linked.
+  "a.g1" -- "g.B1";
+  "a.g2" -- "g.B2";
+  "a.g1" -- "a.g2";
+
+  "a.p1" -- "p.B1";
+  "a.p2" -- "p.B2";
+  "a.p1" -- "a.p2";
+
+  "a.r1" -- "r.B1";
+  "a.r2" -- "r.B2";
+  "a.r1" -- "a.r2";
+
+  "a.o1" -- "o.B1";
+  "a.o2" -- "o.B2";
+  "a.o1" -- "a.o2";
+
+  // ---- Cross-template bridges (asymmetric) ----------------------------
+  // VERTICAL bridges go via A-A edges. The LEFT side (green↔red) has
+  // an extra middle A pair forming a longer chain; the RIGHT side
+  // (purple↔orange) goes direct A-A.
+  "a.gm1" [role="A"];
+  "a.gm2" [role="A"];
+
+  // green's A pair links down to the middle pair, which links to red's
+  "a.g1"  -- "a.gm1";
+  "a.g2"  -- "a.gm2";
+  "a.gm1" -- "a.gm2";
+  "a.gm1" -- "a.r1";
+  "a.gm2" -- "a.r2";
+
+  // purple ↔ orange direct A-A
+  "a.p1" -- "a.o1";
+  "a.p2" -- "a.o2";
+
+  // HORIZONTAL bridges are *direct* B-B edges between templates,
+  // bypassing the A glue. (Asymmetric with vertical, which goes via A.)
+  "g.B2" -- "p.B1";
+  "r.B2" -- "o.B1";
+
+  // Asymmetric A-B wiring: green's A's each link to *both* B's,
+  // purple's A's each link to *one* B (already wired above).
+  "a.g1" -- "g.B2";
+  "a.g2" -- "g.B1";
+}

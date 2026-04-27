@@ -1,0 +1,78 @@
+graph "network_out" {
+  "access.a_1" [layer="access", pop="a", ring="1", type="router", area=1];
+  "access.a_2" [layer="access", pop="a", ring="2", type="router", area=1];
+  "access.b_1" [layer="access", pop="b", ring="1", type="router", area=2];
+  "access.b_2" [layer="access", pop="b", ring="2", type="router", area=2];
+  "core.a_1" [pop="a", ring="1", type="router", area=1];
+  "core.a_2" [pop="a", ring="2", type="router", area=1];
+  "core.b_1" [pop="b", ring="1", type="router", area=2];
+  "core.b_2" [pop="b", ring="2", type="router", area=2];
+  "core.c_1" [pop="c", ring="1", type="router", area=3];
+  "core.c_2" [pop="c", ring="2", type="router", area=3];
+  "core.d_1" [pop="d", ring="1", type="router", area=4];
+  "core.d_2" [pop="d", ring="2", type="router", area=4];
+  "hub.a_1" [layer="hub", pop="a", ring="1", type="router", area=1];
+  "hub.a_2" [layer="hub", pop="a", ring="2", type="router", area=1];
+  "hub.b_1" [layer="hub", pop="b", ring="1", type="router", area=2];
+  "hub.b_2" [layer="hub", pop="b", ring="2", type="router", area=2];
+  subgraph cluster_2 { label="access.pop_b";
+    "access.b_1";
+    "access.b_2";
+  }
+  subgraph cluster_3 { label="hub.pop_a";
+    "hub.a_1";
+    "hub.a_2";
+  }
+  subgraph cluster_5 { label="core.pop_a";
+    "core.a_1";
+    "core.a_2";
+  }
+  subgraph cluster_6 { label="access.pop_a";
+    "access.a_1";
+    "access.a_2";
+  }
+  subgraph cluster_10 { label="core.pop_d";
+    "core.d_1";
+    "core.d_2";
+  }
+  subgraph cluster_11 { label="core.pop_c";
+    "core.c_1";
+    "core.c_2";
+  }
+  subgraph cluster_12 { label="hub.pop_b";
+    "hub.b_1";
+    "hub.b_2";
+  }
+  subgraph cluster_13 { label="core.pop_b";
+    "core.b_1";
+    "core.b_2";
+  }
+  "core.d_2" -- "core.a_2";
+  "core.d_1" -- "core.a_1";
+  "core.c_2" -- "core.d_2";
+  "core.c_1" -- "core.d_1";
+  "core.b_2" -- "core.c_2";
+  "core.b_1" -- "core.c_1";
+  "core.a_2" -- "core.b_2";
+  "core.a_1" -- "core.b_1";
+  "core.d_1" -- "core.d_2";
+  "core.c_1" -- "core.c_2";
+  "core.b_1" -- "core.b_2";
+  "core.a_1" -- "core.a_2";
+  "core.b_1" -- "hub.b_1" [label="area 0", area=0];
+  "core.b_1" -- "hub.b_2" [label="area 0", area=0];
+  "core.b_2" -- "hub.b_1" [label="area 0", area=0];
+  "core.b_2" -- "hub.b_2" [label="area 0", area=0];
+  "core.a_1" -- "hub.a_1" [label="area 0", area=0];
+  "core.a_1" -- "hub.a_2" [label="area 0", area=0];
+  "core.a_2" -- "hub.a_1" [label="area 0", area=0];
+  "core.a_2" -- "hub.a_2" [label="area 0", area=0];
+  "hub.b_1" -- "access.b_1" [label="area 2", area=2];
+  "hub.b_1" -- "access.b_2" [label="area 2", area=2];
+  "hub.b_2" -- "access.b_1" [label="area 2", area=2];
+  "hub.b_2" -- "access.b_2" [label="area 2", area=2];
+  "hub.a_1" -- "access.a_1" [label="area 1", area=1];
+  "hub.a_1" -- "access.a_2" [label="area 1", area=1];
+  "hub.a_2" -- "access.a_1" [label="area 1", area=1];
+  "hub.a_2" -- "access.a_2" [label="area 1", area=1];
+}
