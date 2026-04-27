@@ -69,26 +69,50 @@
                          #:min-private (min-private)
                          #:min-private-frac (min-private-frac)))
     (printf "  ~a novel candidates~n" (length cands))
-    (let try-each ([cs cands])
-      (cond
-        [(null? cs)
-         (printf "  no candidate improved DL; stopping~n")
-         (values library dl)]
-        [else
-         (define t (car cs))
-         (define trial-lib (append library (list t)))
-         (define trial-cover (recognise-cover G trial-lib #:cache rcache))
-         (define trial-dl (cover-dl G trial-cover))
+    ;; Best-improvement acceptance: score every candidate, accept the
+    ;; one whose extended library reaches the lowest DL. Tiebreakers
+    ;; prefer larger templates first, then more edges, then more
+    ;; private interior — so when two candidates both drop DL by the
+    ;; same amount we pick the more-structural one. No more first-
+    ;; improvement coin-flip on the candidate ordering.
+    (define scored
+      (for/list ([t (in-list cands)])
+        (define trial-lib (append library (list t)))
+        (define trial-cover (recognise-cover G trial-lib #:cache rcache))
+        (define trial-dl (cover-dl G trial-cover))
+        (list trial-dl t trial-lib)))
+    (define improving
+      (sort
+       (filter (lambda (s) (< (car s) dl)) scored)
+       (lambda (a b)
+         (define da (car a)) (define db (car b))
+         (define ta (cadr a)) (define tb (cadr b))
          (cond
-           [(< trial-dl dl)
-            (printf "  ACCEPT ~v: ~a → ~a (Δ~a)~n"
-                    t
-                    (real->decimal-string dl 1)
-                    (real->decimal-string trial-dl 1)
-                    (real->decimal-string (- trial-dl dl) 1))
-            (outer trial-lib (+ round 1) (+ accepted 1))]
-           [else
-            (try-each (cdr cs))])]))))
+           [(< da db) #t]
+           [(> da db) #f]
+           ;; Tie on DL — prefer larger template, more edges, more private
+           [(> (car ta) (car tb)) #t]
+           [(< (car ta) (car tb)) #f]
+           [(> (length (caddr ta)) (length (caddr tb))) #t]
+           [(< (length (caddr ta)) (length (caddr tb))) #f]
+           [else (> (- (car ta) (length (cadr ta)))
+                    (- (car tb) (length (cadr tb))))]))))
+    (cond
+      [(null? improving)
+       (printf "  no candidate improved DL; stopping~n")
+       (values library dl)]
+      [else
+       (define best (car improving))
+       (define best-dl (car best))
+       (define best-t (cadr best))
+       (define best-lib (caddr best))
+       (printf "  ACCEPT ~v: ~a → ~a (Δ~a, best of ~a improving)~n"
+               best-t
+               (real->decimal-string dl 1)
+               (real->decimal-string best-dl 1)
+               (real->decimal-string (- best-dl dl) 1)
+               (length improving))
+       (outer best-lib (+ round 1) (+ accepted 1))])))
 
 (printf "~nfinal: ~a templates, DL=~a~n"
         (length final-library)
