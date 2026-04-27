@@ -53,35 +53,122 @@
         'mapping-dl mapping))
 
 ;; ---------------------------------------------------------------
-;; sexpr-principled-dl — DL computed *literally* on the in-memory
-;; s-expressions for grammar + cover. Using prefix-free integer
-;; codes for everything inside.
+;; sexpr-principled-dl — DL on the s-expression representation, with
+;; the cover encoded as a *partition* rather than a list of explicit
+;; node names. The receiver knows the host graph G and the library;
+;; the encoding tells them, in order, which of the still-uncovered
+;; host-nodes each instance claims, then the bridge edges between
+;; tentacle slots.
 ;;
-;;   morpheme = sexpr-dl(library)
-;;     library is `((n tents edges) ...)` — pure integers.
-;;   mapping  = sexpr-dl(cover-as-sexpr)
-;;     cover-as-sexpr is `((rule-id . interior-nodes) ...)`
-;;     where interior-nodes are graph-node symbols.
+;;   library-dl = sexpr-dl(library)
+;;       The library is just integers — small.
+;;   cover-dl = sum over instances of:
+;;       log2(num-rules)     -- which template
+;;     + log2_binom(R, k)    -- which subset of remaining R nodes
+;;     where R is the number of uncovered nodes BEFORE this instance.
+;;   bridges-dl = sum over (instance-pair) of:
+;;       log2_binom(t_a * t_b, k)  -- which of the possible
+;;                                    tentacle-slot pairs are bridged
 ;;
-;; The host graph G is needed to set current-symbol-bits to log2(|V|).
-;; Compositions/bridge edges are not encoded separately here — they
-;; are recoverable from the cover (any host-graph edge whose endpoints
-;; lie in different instances is a bridge), so the cover spec already
-;; uniquely determines them.
+;; This is much cheaper than encoding each cover entry's nodes
+;; independently — early instances pay log2(C(N, k)) but later ones
+;; pay log2(C(small remaining, k)) which is small. Big templates
+;; therefore have low per-instance cost AND fewer total cover entries
+;; — both effects favour rich grammars.
 ;; ---------------------------------------------------------------
+
+(define (instance-pair-key i j)
+  (cond [(< i j) (cons i j)] [else (cons j i)]))
+
 (define (sexpr-principled-dl G library cover)
-  (define n-nodes (max (graph-n-nodes G) 2))
-  (define sym-bits (/ (log n-nodes) (log 2)))
-  (parameterize ([current-symbol-bits sym-bits])
-    (define lib-bits (sexpr-dl library))
-    (define cover-sexpr
-      (for/list ([inst (in-list cover)])
-        (cons (instance-rule-id inst)
-              (sort (set->list (instance-interior inst))
-                    symbol<?))))
-    (define cover-bits (sexpr-dl cover-sexpr))
-    (define total (+ lib-bits cover-bits))
-    (hash 'total-dl total
-          'morpheme-dl lib-bits
-          'message-dl 0.0
-          'mapping-dl cover-bits)))
+  (define library-bits (sexpr-dl library))
+  (define n-rules (max (length library) 1))
+  (define n-nodes (graph-n-nodes G))
+
+  (define live (filter (lambda (i) (positive? (set-count (instance-interior i))))
+                       cover))
+  (define sorted-cover
+    (sort live
+          (lambda (a b)
+            (symbol<?
+             (car (sort (set->list (instance-interior a)) symbol<?))
+             (car (sort (set->list (instance-interior b)) symbol<?))))))
+
+  ;; Cover bits, in two pieces:
+  ;;  (a) partition cost — per instance, log2_binom(R, k) bits for
+  ;;      which-of-the-R-uncovered-nodes-this-instance-claims.
+  ;;  (b) rule-id sequence cost — KT-adaptive code over the multiset
+  ;;      of rule-ids, total bits ~ log2(C(N + R, R)) where R is the
+  ;;      effective alphabet (library + 1 for the 'singleton' fallback).
+  ;;      This is much cheaper than log2(num-rules) per instance once
+  ;;      the cover settles into a few common rules.
+  (define-values (partition-bits final-remaining)
+    (for/fold ([acc 0.0] [remaining n-nodes])
+              ([inst (in-list sorted-cover)])
+      (define k (set-count (instance-interior inst)))
+      (values (+ acc (_log2_binom remaining k)) (- remaining k))))
+  (define rule-id-bits
+    (let* ([alphabet (max (+ n-rules 1) 2)]    ; +1 for singleton fallback
+           [total (length sorted-cover)])
+      (cond [(= total 0) 0.0]
+            [else (_log2_binom (+ total alphabet -1) total)])))
+  (define cover-bits (+ partition-bits rule-id-bits))
+
+  ;; Bridges: encode in two layers.
+  ;;  Layer 1: which (instance, instance) pairs are connected at all.
+  ;;     log2_binom(C(N_inst, 2), num_bridged_pairs) bits.
+  ;;  Layer 2: per bridged pair, log2_binom(t_a*t_b, k) — which
+  ;;     tentacle-slot pairs carry edges.
+  ;; Layer 1 is the dominant term and grows like (num_bridge_edges *
+  ;; log2(num_pairs / num_bridges)) — adding templates that absorb
+  ;; edges into instances reduces num_bridge_edges directly, which is
+  ;; where the real description-length savings come from.
+  (define inst-idx-of-node (make-hash))
+  (for ([inst (in-list sorted-cover)] [idx (in-naturals)]
+        #:when #t
+        [v (in-set (instance-interior inst))])
+    (hash-set! inst-idx-of-node v idx))
+  (define bridges-by-pair (make-hash))
+  (for ([e (in-list (graph-edges G))])
+    (define ia (hash-ref inst-idx-of-node (car e) #f))
+    (define ib (hash-ref inst-idx-of-node (cdr e) #f))
+    (when (and ia ib (not (= ia ib)))
+      (hash-update! bridges-by-pair (instance-pair-key ia ib)
+                    (lambda (n) (+ n 1)) 0)))
+  (define n-inst (length sorted-cover))
+  (define n-pairs-possible (quotient (* n-inst (- n-inst 1)) 2))
+  (define n-bridged-pairs (hash-count bridges-by-pair))
+  (define which-pairs-bits
+    (_log2_binom n-pairs-possible n-bridged-pairs))
+  (define slot-pattern-bits
+    (for/sum ([(pair k) (in-hash bridges-by-pair)])
+      (define A (list-ref sorted-cover (car pair)))
+      (define B (list-ref sorted-cover (cdr pair)))
+      (define ta (max 1 (set-count (instance-tentacles A))))
+      (define tb (max 1 (set-count (instance-tentacles B))))
+      (_log2_binom (* ta tb) k)))
+  (define bridges-bits (+ which-pairs-bits slot-pattern-bits))
+
+  (define total (+ library-bits cover-bits bridges-bits))
+  (hash 'total-dl total
+        'morpheme-dl library-bits
+        'message-dl cover-bits
+        'mapping-dl bridges-bits))
+
+;; helper — log2(C(n, k)), reused across modules; defined locally so
+;; we don't add a require dependency just for one function.
+(define (_log2_binom n k)
+  (cond
+    [(or (< k 0) (> k n) (= n 0)) 0.0]
+    [(or (= k 0) (= k n)) 0.0]
+    [else
+     (- (_log2_factorial n)
+        (_log2_factorial k)
+        (_log2_factorial (- n k)))]))
+
+(define (_log2_factorial n)
+  (cond
+    [(<= n 1) 0.0]
+    [else
+     (for/sum ([i (in-range 2 (+ n 1))])
+       (/ (log i) (log 2)))]))

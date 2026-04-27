@@ -44,36 +44,12 @@
                                 (use-sexpr-dl #t)]
                 #:args (path) path))
 
-(define (cover-dl G cover)
+(define (cover-dl G lib cover)
   (cond
     [(use-sexpr-dl)
-     ;; Re-stamp instances with rule_ids from the canonical-grouping
-     ;; (so the cover-sexpr's rule-id integers reference the current
-     ;; cover's rule numbering).
-     (define gram (grammar-from-cover G cover))
-     (hash-ref (sexpr-principled-dl G
-                                    (extract-library-from-grammar gram)
-                                    (grammar-instances gram))
-               'total-dl)]
+     (hash-ref (sexpr-principled-dl G lib cover) 'total-dl)]
     [else
      (hash-ref (principled-dl G (grammar-from-cover G cover)) 'total-dl)]))
-
-(define (extract-library-from-grammar gram)
-  ;; Re-derive the (n tents edges) form for each rule from its cover
-  ;; representative. Used only for sexpr-DL scoring; the actual
-  ;; bootstrap library is the source of truth elsewhere.
-  (define rep-by-rule (make-hash))
-  (for ([inst (in-list (grammar-instances gram))]
-        #:when (>= (instance-rule-id inst) 0))
-    (hash-update! rep-by-rule (instance-rule-id inst)
-                  (lambda (existing) existing)
-                  inst))
-  (define ids (sort (hash-keys rep-by-rule) <))
-  (for/list ([rid (in-list ids)])
-    (define i (hash-ref rep-by-rule rid))
-    (list (set-count (instance-interior i))
-          (sort (set->list (instance-tentacles i)) symbol<?)
-          (set->list (instance-owned-edges i)))))
 
 (define G (load-dot dot-path))
 (define library
@@ -90,7 +66,7 @@
 (define-values (final-library final-dl)
   (let outer ([library library] [round 0] [accepted 0])
     (define cover (recognise-cover G library #:cache rcache))
-    (define dl (cover-dl G cover))
+    (define dl (cover-dl G library cover))
     (printf "~nround ~a: ~a templates, ~a instances, DL=~a~n"
             round (length library) (length cover)
             (real->decimal-string dl 1))
@@ -110,7 +86,7 @@
       (for/list ([t (in-list cands)])
         (define trial-lib (append library (list t)))
         (define trial-cover (recognise-cover G trial-lib #:cache rcache))
-        (define trial-dl (cover-dl G trial-cover))
+        (define trial-dl (cover-dl G trial-lib trial-cover))
         (list trial-dl t trial-lib)))
     (define improving
       (sort
