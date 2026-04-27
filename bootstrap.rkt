@@ -12,7 +12,7 @@
 ;;   racket bootstrap.rkt --load templates.dat --save templates.dat <dot>
 ;;   racket bootstrap.rkt --max-size 6 --verbose <dot>
 
-(require racket/cmdline racket/file racket/list racket/format)
+(require racket/cmdline racket/file racket/list racket/format racket/set)
 (require "dot.rkt" "graph.rkt" "grammar.rkt" "score.rkt"
          "recognise.rkt" "propose.rkt" "canonical.rkt"
          "compile.rkt" "draw.rkt")
@@ -23,6 +23,7 @@
 (define draw-dir (make-parameter #f))
 (define min-private (make-parameter 1))
 (define min-private-frac (make-parameter 0.5))
+(define use-sexpr-dl (make-parameter #f))
 
 (define dot-path
   (command-line #:program "bootstrap"
@@ -37,12 +38,42 @@
                             (draw-dir d)]
                 [("--min-private") n "Min private-interior nodes per template (default 1)"
                                    (min-private (string->number n))]
-                [("--min-private-frac") f "Min private/n ratio per template (default 0.0)"
+                [("--min-private-frac") f "Min private/n ratio per template (default 0.5)"
                                         (min-private-frac (string->number f))]
+                [("--sexpr-dl") "Score with literal s-expression description length"
+                                (use-sexpr-dl #t)]
                 #:args (path) path))
 
 (define (cover-dl G cover)
-  (hash-ref (principled-dl G (grammar-from-cover G cover)) 'total-dl))
+  (cond
+    [(use-sexpr-dl)
+     ;; Re-stamp instances with rule_ids from the canonical-grouping
+     ;; (so the cover-sexpr's rule-id integers reference the current
+     ;; cover's rule numbering).
+     (define gram (grammar-from-cover G cover))
+     (hash-ref (sexpr-principled-dl G
+                                    (extract-library-from-grammar gram)
+                                    (grammar-instances gram))
+               'total-dl)]
+    [else
+     (hash-ref (principled-dl G (grammar-from-cover G cover)) 'total-dl)]))
+
+(define (extract-library-from-grammar gram)
+  ;; Re-derive the (n tents edges) form for each rule from its cover
+  ;; representative. Used only for sexpr-DL scoring; the actual
+  ;; bootstrap library is the source of truth elsewhere.
+  (define rep-by-rule (make-hash))
+  (for ([inst (in-list (grammar-instances gram))]
+        #:when (>= (instance-rule-id inst) 0))
+    (hash-update! rep-by-rule (instance-rule-id inst)
+                  (lambda (existing) existing)
+                  inst))
+  (define ids (sort (hash-keys rep-by-rule) <))
+  (for/list ([rid (in-list ids)])
+    (define i (hash-ref rep-by-rule rid))
+    (list (set-count (instance-interior i))
+          (sort (set->list (instance-tentacles i)) symbol<?)
+          (set->list (instance-owned-edges i)))))
 
 (define G (load-dot dot-path))
 (define library
@@ -117,6 +148,28 @@
 (printf "~nfinal: ~a templates, DL=~a~n"
         (length final-library)
         (real->decimal-string final-dl 1))
+
+;; Show how many instances each template actually contributes to the
+;; final cover, alongside its specification. Lots of instances per
+;; template = the grammar is genuinely repeating; few instances = the
+;; library is bloated.
+(let* ([final-cover (recognise-cover G final-library #:cache rcache)]
+       [gram (grammar-from-cover G final-cover)]
+       [count-by-rule (make-hash)])
+  (for ([i (in-list (grammar-instances gram))])
+    (hash-update! count-by-rule (instance-rule-id i) add1 0))
+  (printf "~ncover composition:~n")
+  (for ([r (in-list (sort (grammar-rules gram) >
+                          #:key (lambda (r)
+                                  (hash-ref count-by-rule
+                                            (template-rule-id r) 0))))])
+    (define rid (template-rule-id r))
+    (define cnt (hash-ref count-by-rule rid 0))
+    (printf "  R~a: ~ax  (~an / ~at tents / ~ae)~n"
+            rid cnt
+            (template-n-interior r)
+            (template-n-tentacles r)
+            (template-n-owned-edges r))))
 
 ;; --- in-memory eval round-trip ----------------------------------
 ;; Every accepted template is now an s-expression in `final-library`.

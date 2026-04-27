@@ -5,9 +5,9 @@
 ;; refinement once the bootstrap loop is in place).
 
 (require racket/set racket/list)
-(require "graph.rkt" "grammar.rkt" "dl.rkt")
+(require "graph.rkt" "grammar.rkt" "dl.rkt" "sexpr-dl.rkt")
 
-(provide principled-dl)
+(provide principled-dl sexpr-principled-dl)
 
 (define (principled-dl G g)
   (define live (grammar-instances g))
@@ -51,3 +51,37 @@
         'morpheme-dl morph
         'message-dl message-dl
         'mapping-dl mapping))
+
+;; ---------------------------------------------------------------
+;; sexpr-principled-dl — DL computed *literally* on the in-memory
+;; s-expressions for grammar + cover. Using prefix-free integer
+;; codes for everything inside.
+;;
+;;   morpheme = sexpr-dl(library)
+;;     library is `((n tents edges) ...)` — pure integers.
+;;   mapping  = sexpr-dl(cover-as-sexpr)
+;;     cover-as-sexpr is `((rule-id . interior-nodes) ...)`
+;;     where interior-nodes are graph-node symbols.
+;;
+;; The host graph G is needed to set current-symbol-bits to log2(|V|).
+;; Compositions/bridge edges are not encoded separately here — they
+;; are recoverable from the cover (any host-graph edge whose endpoints
+;; lie in different instances is a bridge), so the cover spec already
+;; uniquely determines them.
+;; ---------------------------------------------------------------
+(define (sexpr-principled-dl G library cover)
+  (define n-nodes (max (graph-n-nodes G) 2))
+  (define sym-bits (/ (log n-nodes) (log 2)))
+  (parameterize ([current-symbol-bits sym-bits])
+    (define lib-bits (sexpr-dl library))
+    (define cover-sexpr
+      (for/list ([inst (in-list cover)])
+        (cons (instance-rule-id inst)
+              (sort (set->list (instance-interior inst))
+                    symbol<?))))
+    (define cover-bits (sexpr-dl cover-sexpr))
+    (define total (+ lib-bits cover-bits))
+    (hash 'total-dl total
+          'morpheme-dl lib-bits
+          'message-dl 0.0
+          'mapping-dl cover-bits)))
