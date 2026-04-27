@@ -10,7 +10,9 @@
  graph-add-edge!
  graph-nodes graph-edges graph-neighbours
  graph-n-nodes graph-n-edges
- induced-edges)
+ induced-edges
+ connected-subset?
+ enumerate-connected-subsets)
 
 (struct graph (adj) #:mutable #:transparent)
 
@@ -56,3 +58,58 @@
              #:when (and (set-member? member-set (car e))
                          (set-member? member-set (cdr e))))
     e))
+
+(define (connected-subset? g nodes)
+  (cond
+    [(null? nodes) #t]
+    [else
+     (define ns (list->set nodes))
+     (let bfs ([reached (set (car nodes))] [stack (list (car nodes))])
+       (cond
+         [(null? stack) (= (set-count reached) (length nodes))]
+         [else
+          (define n (car stack))
+          (define new
+            (for/list ([m (in-set (graph-neighbours g n))]
+                       #:when (and (set-member? ns m)
+                                   (not (set-member? reached m))))
+              m))
+          (bfs (set-union reached (list->set new))
+               (append (cdr stack) new))]))]))
+
+(define (enumerate-connected-subsets g k #:among [among #f])
+  ;; Enumerate all connected node-subsets of size k. If `among` is a
+  ;; set, restrict to subsets all of whose nodes are in `among`. Each
+  ;; subset is canonical: built starting from its lex-smallest node
+  ;; and only extending to neighbours strictly greater than the
+  ;; starting node OR connected through the existing subset, deduped
+  ;; via a `seen` hash.
+  (define out '())
+  (define seen (mutable-set))
+  (define avail (cond [(not among) (list->set (graph-nodes g))]
+                      [else among]))
+  (define (extend members frontier)
+    (cond
+      [(= (length members) k)
+       (define key (sort members symbol<?))
+       (unless (set-member? seen key)
+         (set-add! seen key)
+         (set! out (cons key out)))]
+      [else
+       (for ([n (in-set frontier)]
+             #:when (set-member? avail n))
+         (define new-members (cons n members))
+         (define new-frontier
+           (for/set ([m (in-set
+                         (set-union frontier
+                                    (graph-neighbours g n)))]
+                     #:when (and (set-member? avail m)
+                                 (not (member m new-members))))
+             m))
+         (extend new-members new-frontier))]))
+  (for ([start (in-set avail)])
+    (extend (list start)
+            (for/set ([m (in-set (graph-neighbours g start))]
+                      #:when (set-member? avail m))
+              m)))
+  out)
