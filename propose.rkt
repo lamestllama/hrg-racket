@@ -12,9 +12,11 @@
 (provide propose-templates subgraph-as-template)
 
 (define (subgraph-as-template G nodes tentacle-set)
-  ;; Build (n tentacle-indices edges). Nodes are sorted into canonical
-  ;; (WL) order with tentacle vs private-interior distinguished by
-  ;; initial colour. Edges are remapped into positional indices.
+  ;; Build (n tentacle-indices edges). Tentacles are always recorded
+  ;; on the template (instance metadata). What changes between modes
+  ;; is whether the WL initial colouring distinguishes tentacle
+  ;; positions (current-canonical-mode = 'tentacle-aware) or treats
+  ;; them uniformly ('internal-only).
   (define n (length nodes))
   (define node-set (list->set nodes))
   (define adj-of
@@ -24,7 +26,10 @@
         m)))
   (define initial
     (for/hash ([v (in-list nodes)])
-      (values v (if (set-member? tentacle-set v) 1 0))))
+      (values v
+              (case (current-canonical-mode)
+                [(internal-only) 0]
+                [else (if (set-member? tentacle-set v) 1 0)]))))
   (define final-colour
     (let loop ([colour initial] [r 0])
       (cond

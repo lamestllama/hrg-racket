@@ -19,7 +19,16 @@
 (provide induced-canonical-fingerprint
          template-fingerprint
          template-fingerprint-equal?
-         compute-tentacle-set)
+         compute-tentacle-set
+         current-canonical-mode)
+
+;; 'tentacle-aware (default) — initial WL colour distinguishes
+;;   tentacle nodes from private-interior. Two subgraphs match iff
+;;   structure AND tentacle pattern align.
+;; 'internal-only — uniform initial colour. Two subgraphs match iff
+;;   their interiors are isomorphic; tentacle pattern is per-instance
+;;   metadata, not part of rule identity.
+(define current-canonical-mode (make-parameter 'tentacle-aware))
 
 (define (compute-tentacle-set G nodes)
   ;; A tentacle is an interior node with at least one host-graph
@@ -81,7 +90,10 @@
         m)))
   (define initial
     (for/hash ([v (in-list nodes)])
-      (values v (if (set-member? tentacle-set v) 1 0))))
+      (values v
+              (case (current-canonical-mode)
+                [(internal-only) 0]
+                [else (if (set-member? tentacle-set v) 1 0)]))))
   (define final (wl-refine adj-of nodes initial 6))
   (define cs (sorted-list-of-ints (hash-values final)))
   (define es
@@ -93,7 +105,9 @@
   (list n cs es))
 
 (define (template-fingerprint template)
-  ;; template = (list n tentacle-indices edges)
+  ;; Templates always carry (list n tentacle-indices edges) — even in
+  ;; internal-only mode the tentacle pattern is preserved as instance
+  ;; metadata. Only the canonical match changes.
   (define n (car template))
   (define tents (cadr template))
   (define edges (caddr template))
@@ -109,7 +123,10 @@
   (define adj-of (lambda (v) (hash-ref adj v (mutable-set))))
   (define initial
     (for/hash ([v (in-list node-list)])
-      (values v (if (set-member? tents-set v) 1 0))))
+      (values v
+              (case (current-canonical-mode)
+                [(internal-only) 0]
+                [else (if (set-member? tents-set v) 1 0)]))))
   (define final (wl-refine adj-of node-list initial 6))
   (define cs (sorted-list-of-ints (hash-values final)))
   (define es

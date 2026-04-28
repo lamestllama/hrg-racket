@@ -42,6 +42,8 @@
                                         (min-private-frac (string->number f))]
                 [("--sexpr-dl") "Score with literal s-expression description length"
                                 (use-sexpr-dl #t)]
+                [("--canonical") mode "Canonical mode: tentacle-aware (default) or internal-only"
+                                 (current-canonical-mode (string->symbol mode))]
                 #:args (path) path))
 
 (define (cover-dl G lib cover)
